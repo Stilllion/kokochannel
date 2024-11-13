@@ -1,45 +1,41 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart';
 import 'package:html/parser.dart';
 import 'package:html/dom.dart' as DOM;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kokochannel/TGPost.dart';
-import 'package:flutter_html/flutter_html.dart';
 import 'package:kokochannel/gallery.dart';
 import 'package:kokochannel/puzzle15.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const KokoChannel());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class KokoChannel extends StatelessWidget {
+  const KokoChannel({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'KokoChanneL',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MainPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
 
-  final String title;
-  
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<MainPage> createState() => _MainPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MainPageState extends State<MainPage> {
   Map<String, List<TGPost>> postsByChannel = {};
   
   Set<int> postsIDs = {};
@@ -50,10 +46,10 @@ class _MyHomePageState extends State<MyHomePage> {
   PageController pageController = PageController();
   TextEditingController newSubTextFieldController = TextEditingController();
   
-  int maxPosts = 10;
-
   // Keeps both channel url and the last seen post for the channel
   Map<String, dynamic> subs = {};
+
+  FocusNode mainPageFocusNode = FocusNode();
 
   List<String> combo = [];
   List<String> code = ["up", "up", "down", "down", "left", "right", "left", "right"];
@@ -74,7 +70,6 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       });
     } catch (E){
-      print(E);
     }
   }
 
@@ -83,17 +78,10 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     loadSubs();
-
-    feedScrollController.addListener(() {
-      if(feedScrollController.position.maxScrollExtent - feedScrollController.offset < 200){
-
-      }      
-    });
   }
 
   void updateSubs(){
     var subsFile = File("subs.json");
-    print(subs);
     subsFile.writeAsString(json.encode(subs));
   }
 
@@ -130,9 +118,7 @@ class _MyHomePageState extends State<MyHomePage> {
       postsIDs.add(afterId);
       
       while(!noNewPosts){
-        var resp = await get(Uri.parse("$key?after=$afterId"), headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36'
-        });
+        var resp = await get(Uri.parse("$key?after=$afterId"));
 
         final DOM.Document document = parse(resp.body);
         
@@ -165,10 +151,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
           String? id = el.querySelector("div")?.attributes["data-post"]?.split('/')[1];
           String? date = el.querySelector("div > div > div > div > div> span > a > time")?.attributes['datetime'];
+
           if(date != null){
             date = date.replaceAll('T', ' ');
           }
-
 
           if(id != null){
             if(postsIDs.add(int.parse(id))){
@@ -203,8 +189,13 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode(),
-      onKeyEvent: (keyEvent){          
+      focusNode: mainPageFocusNode,
+      autofocus: true,
+      onKeyEvent: (keyEvent){
+        if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.escape){
+          pageController.jumpTo(0);
+        }
+
         if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.arrowUp){
           combo.add("up");
         }
@@ -218,16 +209,15 @@ class _MyHomePageState extends State<MyHomePage> {
           combo.add("right");
         }
 
-        // if(combo.contains(code)){
         if(combo.join().contains(code.join())){
-          Navigator.push(context, MaterialPageRoute(builder: (context) => Puzzle15()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const Puzzle15()));
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.amber.shade100,
+        backgroundColor: const Color(0xFFFBF1C7),
         appBar: AppBar(
           backgroundColor: Colors.amber.shade200,
-          title: const Text("KOKO CHANNEL"),
+          title: const Text("ココ;ChanneL"),
           actions: [
             IconButton(
               focusNode: FocusNode(),
@@ -257,7 +247,8 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         
         body: PageView(
-          controller: pageController,      
+          controller: pageController,
+          physics: const NeverScrollableScrollPhysics(),
           children: [       
             subs.isNotEmpty && feed.isNotEmpty ? Padding(
               padding: const EdgeInsets.all(32.0),
@@ -266,7 +257,6 @@ class _MyHomePageState extends State<MyHomePage> {
                   itemCount: feed.length,
                   physics: const AlwaysScrollableScrollPhysics(),
                   cacheExtent: 10000,
-                  // controller: feedScrollController,
                   itemBuilder: (context, index){
                     return Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -291,6 +281,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                 cursor: SystemMouseCursors.click,
                                 child: SizedBox(
                                   width: MediaQuery.of(context).size.width / 2,
+                                  // height: 300,
                                   child: Row(
                                     children: [
                                       ...feed[index].imgURLs.map((e) {
@@ -300,7 +291,8 @@ class _MyHomePageState extends State<MyHomePage> {
                                           return Expanded(
                                             child: Padding(
                                               padding: const EdgeInsets.all(8.0),
-                                              child: Container(
+                                              child: SizedBox(
+                                                height: 256,
                                                 // width: 200,
                                                 child: Image.network(e)),
                                             ),
@@ -312,10 +304,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                               ),
                             ),
+                            
                             Html(
                               data: feed[index].text,
                               style: {
-                                "*": Style(fontSize: FontSize.xLarge, fontFamily: "Noto Sans")
+                                "*": Style(fontSize: FontSize.xLarge, fontFamily: "Noto Sans", color: const Color(0xFF282828))
                               },
                             ),
         
@@ -340,46 +333,80 @@ class _MyHomePageState extends State<MyHomePage> {
               fontSize: 20
             ),)),
               
-            Row(
-              children: [
-                SingleChildScrollView(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ...subs.keys.map((e) => (Text(e))).toList()
-                    ],
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...subs.keys.map((e) => (
+                          Text(e, style: const TextStyle(
+                            fontSize: 16
+                          ),))
+                        )
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: Center(              
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 132),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          TextField(
-                            controller: newSubTextFieldController,
-                            onSubmitted: (value){
-                              initSub("https://t.me/s/${value.substring(13)}");
-                              newSubTextFieldController.clear();
-                            }
-                          ),
-                          
-                          const SizedBox(height: 64,),
-                          
-                          ElevatedButton(
-                            onPressed: (){
-                              pageController.jumpTo(0);
-                            }, child: const Text("BACK")
-                          )
-                        ],
+              
+                  Expanded(
+                    child: Center(              
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextField(
+                              autofocus: true,
+                              controller: newSubTextFieldController,
+                               decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                labelText: 'https://t.me/channel_link',
+                                icon: Icon(Icons.star),
+                              ),
+                              onSubmitted: (value){
+                                initSub("https://t.me/s/${value.substring(13)}");
+                                newSubTextFieldController.clear();
+                              }
+                            ),
+                            
+                            const SizedBox(height: 16,),
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 200,
+                                  child: OutlinedButton(onPressed: (){
+                                    initSub("https://t.me/s/${newSubTextFieldController.text.substring(13)}");
+                                    newSubTextFieldController.clear();
+                                  }, 
+                                  child: const Text("ADD"))
+                                ),
+
+                                const SizedBox(
+                                  width: 16,
+                                ),
+
+                                SizedBox(
+                                  width: 200,
+                                  child: OutlinedButton(onPressed: (){
+                                    pageController.jumpTo(0);
+                                  }, 
+                                  child: const Text("BACK"))
+                                )
+                              ]
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             )
           ],
         ),
