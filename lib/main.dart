@@ -210,6 +210,7 @@ class _MainPageState extends State<MainPage> {
         }
 
         if(combo.join().contains(code.join())){
+          combo.clear();
           Navigator.push(context, MaterialPageRoute(builder: (context) => const Puzzle15()));
         }
       },

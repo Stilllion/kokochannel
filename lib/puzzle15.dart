@@ -1,20 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class Tile15{
-  int r = 0;
-  int c= 0;
-  Color color = Colors.red;
-
+class Tile{
+  int r = 0, c = 0;
   int value = 0;
+  Color color = Colors.red.shade300;
 }
-
-class Pair<T1,T2> {
-    final int r;
-    final int c;
-    Pair(this.r, this.c);
-}
-
 
 class Puzzle15 extends StatefulWidget {
   const Puzzle15({super.key});
@@ -24,22 +15,13 @@ class Puzzle15 extends StatefulWidget {
 }
 
 class _Puzzle15State extends State<Puzzle15> {
+  List<int> field = List.generate(16, (index) => index);  
+  List<Tile> tiles = List.generate(16, (index) => Tile());
 
-  List<List<int>> field = [
-    [2,  4,  6,  1 ],
-    [9, 11, 13, 12 ],
-    [8, 15, 7,  10 ],
-    [3,  5, 14,  0 ],
-  ];
+  int emptyPos = 0;
+  int fieldWidth = 4;
 
-  List<Pair> tilesPos = [];
-
-  Pair emptySlot = Pair(3, 3);
-
-  Pair up = Pair(1, 0);
-  Pair down = Pair(-1, 0);
-  Pair right = Pair(0, -1);
-  Pair left = Pair(0, 1);
+  double tileWidth = 120;
 
   FocusNode fieldFocusNode = FocusNode();
  
@@ -47,49 +29,67 @@ class _Puzzle15State extends State<Puzzle15> {
   void initState(){
     super.initState();
 
-    for(int r = 0; r < 4; ++r){
-      for(int c = 0; c < 4; ++c){
-        tilesPos.add(Pair(r, c));
-      }
-    }        
+    field.shuffle();
+
+    for(int i = 0; i < field.length; ++i){
+      tiles[field[i]].r = i ~/ fieldWidth;
+      tiles[field[i]].c = i % fieldWidth;
+      tiles[field[i]].value = field[i];
+            
+      tiles[field[i]].color = field[i] == i + 1 ? Colors.green.shade200 : Colors.red.shade300;
+    }
+
+    emptyPos = field.indexOf(0);
   }
 
   List<Widget> buildField(){
-    List<Widget> tiles = [];
+    List<Widget> tileWidgets = [];
 
-    for(int i = 1; i < 16; ++ i){
-      tiles.add(        
-        AnimatedPositioned(
-          left: (MediaQuery.of(context).size.width - 55 * 4) / 2 + tilesPos[i].c * 55,
-          top:  (MediaQuery.of(context).size.height - 55 * 4) / 2 + tilesPos[i].r * 55,
-          child: Container(            
-            width: 50,
-            height: 50,
-            color: Colors.red.shade200,
-            child: Center(child: Text(field[tilesPos[i].r][tilesPos[i].c].toString())),
-          ),
-          duration: Duration(milliseconds: 50)
-        )
-      );
+    for(int i = 0; i < 16; ++ i){
+      if(tiles[i].value > 0){
+        tileWidgets.add(
+          AnimatedPositioned(
+            left: (MediaQuery.of(context).size.width - tileWidth * 4) / 2 + tiles[i].c * (tileWidth + 5),
+            top:  (MediaQuery.of(context).size.height - tileWidth * 4) / 2 + tiles[i].r * (tileWidth + 5),
+            duration: const Duration(milliseconds: 75),
+            child: AnimatedContainer(            
+              width: tileWidth,
+              height: tileWidth,
+              color: tiles[i].color,
+              duration: const Duration(milliseconds: 120),            
+              child: Center(child: Text(tiles[i].value.toString(), style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold
+              ),)),
+            )
+          )
+        );
+      }
     }  
 
-    return tiles;
+    return tileWidgets;
   }
 
-  void swapValues(Pair direction){
-    int? swapValue = field[emptySlot.r + direction.r][emptySlot.c + direction.c];
-    
-    if(swapValue != null){
+  void swapValues(int direction){
+    if(emptyPos + direction > fieldWidth * fieldWidth || emptyPos + direction < 0) return;
+
+    Tile swapValue = tiles[field[emptyPos + direction]];
+    Tile emptyTile = tiles[field[emptyPos]];
+
+    if((swapValue.r - emptyTile.r).abs() <= 1 && (swapValue.c - emptyTile.c).abs() <= 1){
       setState(() {
-        field[emptySlot.r][emptySlot.c] = swapValue;
-        field[emptySlot.r + direction.r][emptySlot.c + direction.c] = 0;
-        emptySlot = Pair(emptySlot.r + direction.r, emptySlot.c + direction.c);
-        
-        for(int r = 0; r < 4; ++r){
-          for(int c = 0; c < 4; ++c){
-            tilesPos[field[r][c]] = Pair(r, c);
-          }
-        }        
+        final temp = field[emptyPos];
+        field[emptyPos] = field[emptyPos + direction];
+        field[emptyPos + direction] = temp;
+
+        emptyPos = emptyPos + direction;
+
+        for(int i = 0; i < field.length; ++i){
+          tiles[field[i]].r = i ~/ fieldWidth;
+          tiles[field[i]].c = i % fieldWidth;
+          tiles[field[i]].value = field[i];
+
+          tiles[field[i]].color = field[i] == i + 1 ? Colors.green.shade200 : Colors.red.shade300;
+        }
       });
     }
   }
@@ -103,23 +103,24 @@ class _Puzzle15State extends State<Puzzle15> {
         autofocus: true,
         onKeyEvent: (keyEvent){          
           if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.arrowUp){
-            swapValues(up);
+            swapValues(fieldWidth);
           }
           if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.arrowDown){
-            swapValues(down);
+            swapValues(-fieldWidth);
           }
           if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.arrowLeft){
-            swapValues(left);
+            swapValues(1);
           }
           if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.arrowRight){
-            swapValues(right);
-          }      
+            swapValues(-1);
+          }
+          if(keyEvent is KeyDownEvent && keyEvent.logicalKey == LogicalKeyboardKey.escape){
+            Navigator.of(context).pop();
+          }
         },
 
         child: Stack(
-          children: [
-            ...buildField()
-          ],
+          children: [...buildField()],
         ),
       )
     );
